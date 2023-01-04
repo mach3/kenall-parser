@@ -65,12 +65,12 @@ function splitAddress (addressString: string): string[] {
   addressString.replace(/[０-９]/g, (s: string) => ZEN_NUM_MAP.indexOf(s).toString())
     .split('、')
     .forEach((value: string) => {
-      const m = value.match(/([^\d]+)?(\d+)～(\d+)(.+)$/);
+      const m = value.match(/([^\d]+)?(\d+)～(\d+)([^\d]+)?$/);
       if (m !== null) {
-        const [, prefix, start, end, suffix] = m;
+        const [, prefix, start, end, suffix = ''] = m;
         // 処理が困難なひとたち
         if (countChar(value, '～') > 1 || countChar(value, '－') > 0 || Boolean(prefix)) {
-          result.push(value);
+          return;
         }
         for (let i = parseInt(start, 10); i <= parseInt(end, 10); i += 1) {
           result.push(`${i}${suffix}`);
@@ -80,7 +80,9 @@ function splitAddress (addressString: string): string[] {
       }
     });
 
-  return result.map((value) => value.replace(/\d/g, (s) => ZEN_NUM_MAP[parseInt(s, 10)]));
+  return (result.length > 0)
+    ? result.map((value) => value.replace(/\d/g, (s) => ZEN_NUM_MAP[parseInt(s, 10)]))
+    : [''];
 }
 
 /**
@@ -98,14 +100,33 @@ function parseAddress (addressString: string = ''): string[] {
     .replace(/（高層棟）/, '')
     .replace(/（(.+?)除く）/, '')
     .replace(/（その他）/, '')
-    .replace(/「(.+?)」/g, '');
+    .replace(/「(.+?)」/g, '')
+    .replace(/〔(.+?)構内〕/g, '')
+    .replace(/以上/g, '');
 
   const m = address.match(/(.+)（(.+?)）/);
-  if (m != null) {
+  if (m !== null) {
     const [, prefix, content] = m;
     return splitAddress(content).map((value) => `${prefix}${value}`);
   }
   return [address];
+}
+
+/**
+ * 住所から括弧内の文字列を取り除き、括弧内の文字列と一緒に返す
+ * @param {string} address
+ * @returns {[string, string?]}
+ */
+function parseBrackets (address: string): [string, string?] {
+  const pattern = /（.+）/;
+  const m = address.match(pattern);
+  if (m !== null) {
+    return [
+      address.replace(pattern, ''),
+      m[0].replace(/[（）「」]/g, '')
+    ];
+  }
+  return [address, undefined];
 }
 
 interface AddressItem {
@@ -113,18 +134,23 @@ interface AddressItem {
   pref: string
   components: string[]
   address: string
+  notes?: string
 }
 
 type SourceAddressItem = AddressItem & {
   sbAddress: string
 };
 
+interface ParseOptions {
+  parseBrackets?: boolean
+}
+
 /**
  * KEN_ALL.csvをパースする
  * @param {string} csv
  * @returns AddressItem[]
  */
-export function parse (csv: string): SourceAddressItem[] {
+export function parse (csv: string, options?: ParseOptions): SourceAddressItem[] {
   const rows = csv.split(/\r\n/);
   const data: SourceAddressItem[] = [];
   const multiline: string[] = [];
@@ -139,6 +165,7 @@ export function parse (csv: string): SourceAddressItem[] {
     const pref = cols[6];
     const city = cols[7];
     let address = cols[8];
+    let notes;
 
     if (address === undefined) {
       return;
@@ -163,17 +190,29 @@ export function parse (csv: string): SourceAddressItem[] {
       }
     }
 
-    parseAddress(address).forEach((a) => {
-      data.push(
-        {
-          zipcode,
-          pref,
-          components: [city, a].filter((v) => Boolean(v)),
-          address: `${city}${a}`,
-          sbAddress: convertNumber(`${city}${a}`)
-        }
-      );
-    });
+    if (options?.parseBrackets !== true) {
+      [address, notes] = parseBrackets(address);
+      data.push({
+        zipcode,
+        pref,
+        components: [city, address],
+        address: `${city}${address}`,
+        sbAddress: convertNumber(`${city}${address}`),
+        notes
+      });
+    } else {
+      parseAddress(address).forEach((a) => {
+        data.push(
+          {
+            zipcode,
+            pref,
+            components: [city, a].filter((v) => Boolean(v)),
+            address: `${city}${a}`,
+            sbAddress: convertNumber(`${city}${a}`)
+          }
+        );
+      });
+    }
   });
 
   return data;
@@ -199,6 +238,10 @@ export async function findByZipcode (zipcodeString: string, data: SourceAddressI
     const zipcode = zipcodeString
       .replace(/[０-９]/g, (s) => ZEN_NUM_MAP.indexOf(s).toString())
       .replace(/[^\d]/g, '');
+    if (zipcode.length === 0) {
+      reject(new Error('empty zipcode'));
+      return;
+    }
     const pattern = new RegExp(`^${zipcode}`);
     const result = data.filter((item) => pattern.test(item.zipcode));
     if (result.length > 0) {
@@ -218,6 +261,10 @@ export async function findByZipcode (zipcodeString: string, data: SourceAddressI
 export async function findByAddress (addressString: string, data: SourceAddressItem[]): Promise<AddressItem[]> {
   return await new Promise((resolve, reject) => {
     const address = convertNumber(addressString);
+    if (address.length === 0) {
+      reject(new Error('empty address'));
+      return;
+    }
     const result = (() => {
       const r = data.filter((item) => `${item.pref}${item.sbAddress}`.includes(address));
       return (r.length > 0) ? r : data.filter((item) => address.includes(item.sbAddress));

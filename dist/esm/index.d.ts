@@ -9,16 +9,20 @@ interface AddressItem {
     pref: string;
     components: string[];
     address: string;
+    notes?: string;
 }
 type SourceAddressItem = AddressItem & {
     sbAddress: string;
 };
+interface ParseOptions {
+    parseBrackets?: boolean;
+}
 /**
  * KEN_ALL.csvをパースする
  * @param {string} csv
  * @returns AddressItem[]
  */
-export declare function parse(csv: string): SourceAddressItem[];
+export declare function parse(csv: string, options?: ParseOptions): SourceAddressItem[];
 /**
  * 郵便番号から住所を検索する
  * @param {string} zipcodeString

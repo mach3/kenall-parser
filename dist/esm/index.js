@@ -82,12 +82,12 @@ function splitAddress(addressString) {
     addressString.replace(/[０-９]/g, (s) => ZEN_NUM_MAP.indexOf(s).toString())
         .split('、')
         .forEach((value) => {
-        const m = value.match(/([^\d]+)?(\d+)～(\d+)(.+)$/);
+        const m = value.match(/([^\d]+)?(\d+)～(\d+)([^\d]+)?$/);
         if (m !== null) {
-            const [, prefix, start, end, suffix] = m;
+            const [, prefix, start, end, suffix = ''] = m;
             // 処理が困難なひとたち
             if (countChar(value, '～') > 1 || countChar(value, '－') > 0 || Boolean(prefix)) {
-                result.push(value);
+                return;
             }
             for (let i = parseInt(start, 10); i <= parseInt(end, 10); i += 1) {
                 result.push(`${i}${suffix}`);
@@ -97,7 +97,9 @@ function splitAddress(addressString) {
             result.push(value);
         }
     });
-    return result.map((value) => value.replace(/\d/g, (s) => ZEN_NUM_MAP[parseInt(s, 10)]));
+    return (result.length > 0)
+        ? result.map((value) => value.replace(/\d/g, (s) => ZEN_NUM_MAP[parseInt(s, 10)]))
+        : [''];
 }
 /**
  * 住所文字列をパースする
@@ -113,20 +115,38 @@ function parseAddress(addressString = '') {
         .replace(/（高層棟）/, '')
         .replace(/（(.+?)除く）/, '')
         .replace(/（その他）/, '')
-        .replace(/「(.+?)」/g, '');
+        .replace(/「(.+?)」/g, '')
+        .replace(/〔(.+?)構内〕/g, '')
+        .replace(/以上/g, '');
     const m = address.match(/(.+)（(.+?)）/);
-    if (m != null) {
+    if (m !== null) {
         const [, prefix, content] = m;
         return splitAddress(content).map((value) => `${prefix}${value}`);
     }
     return [address];
 }
 /**
+ * 住所から括弧内の文字列を取り除き、括弧内の文字列と一緒に返す
+ * @param {string} address
+ * @returns {[string, string?]}
+ */
+function parseBrackets(address) {
+    const pattern = /（.+）/;
+    const m = address.match(pattern);
+    if (m !== null) {
+        return [
+            address.replace(pattern, ''),
+            m[0].replace(/[（）「」]/g, '')
+        ];
+    }
+    return [address, undefined];
+}
+/**
  * KEN_ALL.csvをパースする
  * @param {string} csv
  * @returns AddressItem[]
  */
-export function parse(csv) {
+export function parse(csv, options) {
     const rows = csv.split(/\r\n/);
     const data = [];
     const multiline = [];
@@ -140,6 +160,7 @@ export function parse(csv) {
         const pref = cols[6];
         const city = cols[7];
         let address = cols[8];
+        let notes;
         if (address === undefined) {
             return;
         }
@@ -159,15 +180,28 @@ export function parse(csv) {
                 multiline.splice(0, multiline.length);
             }
         }
-        parseAddress(address).forEach((a) => {
+        if ((options === null || options === void 0 ? void 0 : options.parseBrackets) !== true) {
+            [address, notes] = parseBrackets(address);
             data.push({
                 zipcode,
                 pref,
-                components: [city, a].filter((v) => Boolean(v)),
-                address: `${city}${a}`,
-                sbAddress: convertNumber(`${city}${a}`)
+                components: [city, address],
+                address: `${city}${address}`,
+                sbAddress: convertNumber(`${city}${address}`),
+                notes
             });
-        });
+        }
+        else {
+            parseAddress(address).forEach((a) => {
+                data.push({
+                    zipcode,
+                    pref,
+                    components: [city, a].filter((v) => Boolean(v)),
+                    address: `${city}${a}`,
+                    sbAddress: convertNumber(`${city}${a}`)
+                });
+            });
+        }
     });
     return data;
 }
@@ -194,6 +228,10 @@ export function findByZipcode(zipcodeString, data) {
             const zipcode = zipcodeString
                 .replace(/[０-９]/g, (s) => ZEN_NUM_MAP.indexOf(s).toString())
                 .replace(/[^\d]/g, '');
+            if (zipcode.length === 0) {
+                reject(new Error('empty zipcode'));
+                return;
+            }
             const pattern = new RegExp(`^${zipcode}`);
             const result = data.filter((item) => pattern.test(item.zipcode));
             if (result.length > 0) {
@@ -215,6 +253,10 @@ export function findByAddress(addressString, data) {
     return __awaiter(this, void 0, void 0, function* () {
         return yield new Promise((resolve, reject) => {
             const address = convertNumber(addressString);
+            if (address.length === 0) {
+                reject(new Error('empty address'));
+                return;
+            }
             const result = (() => {
                 const r = data.filter((item) => `${item.pref}${item.sbAddress}`.includes(address));
                 return (r.length > 0) ? r : data.filter((item) => address.includes(item.sbAddress));
