@@ -102,30 +102,6 @@ function splitAddress(addressString) {
         : [''];
 }
 /**
- * 住所文字列をパースする
- * @param {string} addressString
- * @returns string[]
- */
-function parseAddress(addressString = '') {
-    if (/(くる|ない)場合/.test(addressString)) {
-        return [''];
-    }
-    const address = addressString
-        .replace(/([^^])一円/, '$1')
-        .replace(/（高層棟）/, '')
-        .replace(/（(.+?)除く）/, '')
-        .replace(/（その他）/, '')
-        .replace(/「(.+?)」/g, '')
-        .replace(/〔(.+?)構内〕/g, '')
-        .replace(/以上/g, '');
-    const m = address.match(/(.+)（(.+?)）/);
-    if (m !== null) {
-        const [, prefix, content] = m;
-        return splitAddress(content).map((value) => `${prefix}${value}`);
-    }
-    return [address];
-}
-/**
  * 住所から括弧内の文字列を取り除き、括弧内の文字列と一緒に返す
  * @param {string} address
  * @returns {[string, string?]}
@@ -140,6 +116,34 @@ function parseBrackets(address) {
         ];
     }
     return [address, undefined];
+}
+/**
+ * 住所文字列をパースする
+ * @param {string} addressString
+ * @param {ParseOptions} options
+ * @returns string[]
+ */
+function parseAddress(addressString = '', options) {
+    var _a;
+    if (/(くる|ない)場合/.test(addressString)) {
+        return [''];
+    }
+    const address = addressString
+        .replace(/([^^])一円/, '$1')
+        .replace(/（高層棟）/, '')
+        .replace(/（(.+?)除く）/, '')
+        .replace(/（その他）/, '')
+        .replace(/「(.+?)」/g, '')
+        .replace(/〔(.+?)構内〕/g, '')
+        .replace(/以上/g, '');
+    if ((_a = (options === null || options === void 0 ? void 0 : options.parseBrackets)) !== null && _a !== void 0 ? _a : false) {
+        const m = address.match(/(.+)（(.+?)）/);
+        if (m !== null) {
+            const [, prefix, content] = m;
+            return splitAddress(content).map((value) => `${prefix}${value}`);
+        }
+    }
+    return [address];
 }
 /**
  * KEN_ALL.csvをパースする
@@ -160,7 +164,6 @@ export function parse(csv, options) {
         const pref = cols[6];
         const city = cols[7];
         let address = cols[8];
-        let notes;
         if (address === undefined) {
             return;
         }
@@ -180,28 +183,17 @@ export function parse(csv, options) {
                 multiline.splice(0, multiline.length);
             }
         }
-        if ((options === null || options === void 0 ? void 0 : options.parseBrackets) !== true) {
-            [address, notes] = parseBrackets(address);
+        parseAddress(address, options).forEach((a) => {
+            var _a;
             data.push({
                 zipcode,
                 pref,
-                components: [city, address],
-                address: `${city}${address}`,
-                sbAddress: convertNumber(`${city}${address}`),
-                notes
+                components: [city, a].filter((v) => Boolean(v)),
+                address: `${city}${a}`,
+                sbAddress: convertNumber(`${city}${a}`),
+                notes: ((_a = (options === null || options === void 0 ? void 0 : options.parseBrackets)) !== null && _a !== void 0 ? _a : false) ? undefined : parseBrackets(address)[1]
             });
-        }
-        else {
-            parseAddress(address).forEach((a) => {
-                data.push({
-                    zipcode,
-                    pref,
-                    components: [city, a].filter((v) => Boolean(v)),
-                    address: `${city}${a}`,
-                    sbAddress: convertNumber(`${city}${a}`)
-                });
-            });
-        }
+        });
     });
     return data;
 }

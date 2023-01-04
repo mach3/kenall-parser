@@ -4,6 +4,9 @@
  * @returns Promise<string>
  */
 export declare function fetch(url?: string): Promise<string>;
+interface ParseOptions {
+    parseBrackets?: boolean;
+}
 interface AddressItem {
     zipcode: string;
     pref: string;
@@ -14,9 +17,6 @@ interface AddressItem {
 type SourceAddressItem = AddressItem & {
     sbAddress: string;
 };
-interface ParseOptions {
-    parseBrackets?: boolean;
-}
 /**
  * KEN_ALL.csvをパースする
  * @param {string} csv

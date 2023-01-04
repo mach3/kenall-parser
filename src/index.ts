@@ -85,31 +85,8 @@ function splitAddress (addressString: string): string[] {
     : [''];
 }
 
-/**
- * 住所文字列をパースする
- * @param {string} addressString
- * @returns string[]
- */
-function parseAddress (addressString: string = ''): string[] {
-  if (/(くる|ない)場合/.test(addressString)) {
-    return [''];
-  }
-
-  const address = addressString
-    .replace(/([^^])一円/, '$1')
-    .replace(/（高層棟）/, '')
-    .replace(/（(.+?)除く）/, '')
-    .replace(/（その他）/, '')
-    .replace(/「(.+?)」/g, '')
-    .replace(/〔(.+?)構内〕/g, '')
-    .replace(/以上/g, '');
-
-  const m = address.match(/(.+)（(.+?)）/);
-  if (m !== null) {
-    const [, prefix, content] = m;
-    return splitAddress(content).map((value) => `${prefix}${value}`);
-  }
-  return [address];
+interface ParseOptions {
+  parseBrackets?: boolean
 }
 
 /**
@@ -129,6 +106,37 @@ function parseBrackets (address: string): [string, string?] {
   return [address, undefined];
 }
 
+/**
+ * 住所文字列をパースする
+ * @param {string} addressString
+ * @param {ParseOptions} options
+ * @returns string[]
+ */
+function parseAddress (addressString: string = '', options?: ParseOptions): string[] {
+  if (/(くる|ない)場合/.test(addressString)) {
+    return [''];
+  }
+
+  const address = addressString
+    .replace(/([^^])一円/, '$1')
+    .replace(/（高層棟）/, '')
+    .replace(/（(.+?)除く）/, '')
+    .replace(/（その他）/, '')
+    .replace(/「(.+?)」/g, '')
+    .replace(/〔(.+?)構内〕/g, '')
+    .replace(/以上/g, '');
+
+  if ((options?.parseBrackets) ?? false) {
+    const m = address.match(/(.+)（(.+?)）/);
+    if (m !== null) {
+      const [, prefix, content] = m;
+      return splitAddress(content).map((value) => `${prefix}${value}`);
+    }
+  }
+
+  return [address];
+}
+
 interface AddressItem {
   zipcode: string
   pref: string
@@ -140,10 +148,6 @@ interface AddressItem {
 type SourceAddressItem = AddressItem & {
   sbAddress: string
 };
-
-interface ParseOptions {
-  parseBrackets?: boolean
-}
 
 /**
  * KEN_ALL.csvをパースする
@@ -165,7 +169,6 @@ export function parse (csv: string, options?: ParseOptions): SourceAddressItem[]
     const pref = cols[6];
     const city = cols[7];
     let address = cols[8];
-    let notes;
 
     if (address === undefined) {
       return;
@@ -190,29 +193,18 @@ export function parse (csv: string, options?: ParseOptions): SourceAddressItem[]
       }
     }
 
-    if (options?.parseBrackets !== true) {
-      [address, notes] = parseBrackets(address);
-      data.push({
-        zipcode,
-        pref,
-        components: [city, address],
-        address: `${city}${address}`,
-        sbAddress: convertNumber(`${city}${address}`),
-        notes
-      });
-    } else {
-      parseAddress(address).forEach((a) => {
-        data.push(
-          {
-            zipcode,
-            pref,
-            components: [city, a].filter((v) => Boolean(v)),
-            address: `${city}${a}`,
-            sbAddress: convertNumber(`${city}${a}`)
-          }
-        );
-      });
-    }
+    parseAddress(address, options).forEach((a) => {
+      data.push(
+        {
+          zipcode,
+          pref,
+          components: [city, a].filter((v) => Boolean(v)),
+          address: `${city}${a}`,
+          sbAddress: convertNumber(`${city}${a}`),
+          notes: ((options?.parseBrackets) ?? false) ? undefined : parseBrackets(address)[1]
+        }
+      );
+    });
   });
 
   return data;
