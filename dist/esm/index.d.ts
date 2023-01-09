@@ -4,11 +4,15 @@
  * @returns Promise<string>
  */
 export declare function fetch(url?: string): Promise<string>;
+interface ParseOptions {
+    parseBrackets?: boolean;
+}
 interface AddressItem {
     zipcode: string;
     pref: string;
     components: string[];
     address: string;
+    notes?: string;
 }
 type SourceAddressItem = AddressItem & {
     sbAddress: string;
@@ -18,7 +22,7 @@ type SourceAddressItem = AddressItem & {
  * @param {string} csv
  * @returns AddressItem[]
  */
-export declare function parse(csv: string): SourceAddressItem[];
+export declare function parse(csv: string, options?: ParseOptions): SourceAddressItem[];
 /**
  * 郵便番号から住所を検索する
  * @param {string} zipcodeString
