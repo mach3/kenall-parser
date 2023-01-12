@@ -134,7 +134,7 @@ function parseAddress (addressString: string = '', options?: ParseOptions): stri
     }
   }
 
-  return [address];
+  return [parseBrackets(address)[0]];
 }
 
 interface AddressItem {
