@@ -268,3 +268,26 @@ export async function findByAddress (addressString: string, data: SourceAddressI
     }
   });
 }
+
+/**
+ * 住所の部品からAND/OR検索する
+ * @param {string[]} components
+ * @param {AddressItem[]} data
+ * @param {boolean} isOr
+ * @returns Promise<AddressItem[]>
+ */
+export async function findByComponents (components: string[], data: SourceAddressItem[], isOr: boolean = false): Promise<AddressItem[]> {
+  return await new Promise((resolve, reject) => {
+    const result = data.filter((item) => {
+      const method = isOr ? 'some' : 'every';
+      return components[method]((component) => {
+        return `${item.pref}${item.sbAddress}`.includes(convertNumber(component));
+      });
+    });
+    if (result.length > 0) {
+      resolve(cleanResult(result));
+    } else {
+      reject(new Error('not found'));
+    }
+  });
+}
