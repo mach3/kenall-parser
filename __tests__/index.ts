@@ -62,6 +62,16 @@ test('test parseBrackets option', async () => {
   expect(results[0].notes).toBe(undefined);
 });
 
+// 重複データがないこと
+test("don't have duplicate data", async () => {
+  const raw = await fetch();
+  const data = parse(raw);
+  const tmp = data.map(it => JSON.stringify(it));
+  const uniq = [...new Set(tmp)];
+
+  expect(tmp.length).toBe(uniq.length);
+});
+
 // 郵便番号を指定してデータを取得できること
 test('find item by zipcode', async () => {
   const raw = await fetch();

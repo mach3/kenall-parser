@@ -207,7 +207,8 @@ export function parse (csv: string, options?: ParseOptions): SourceAddressItem[]
     });
   });
 
-  return data;
+  return Array.from(new Set(data.map(it => JSON.stringify(it))))
+    .map(json => JSON.parse(json));
 }
 
 /**
