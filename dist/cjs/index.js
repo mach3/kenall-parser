@@ -23,7 +23,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.findByAddress = exports.findByZipcode = exports.parse = exports.fetch = void 0;
+exports.findByComponents = exports.findByAddress = exports.findByZipcode = exports.parse = exports.fetch = void 0;
 const https_1 = __importDefault(require("https"));
 const unzipper_1 = __importDefault(require("unzipper"));
 const iconv_lite_1 = __importDefault(require("iconv-lite"));
@@ -150,7 +150,7 @@ function parseAddress(addressString = '', options) {
             return splitAddress(content).map((value) => `${prefix}${value}`);
         }
     }
-    return [address];
+    return [parseBrackets(address)[0]];
 }
 /**
  * KEN_ALL.csvをパースする
@@ -202,7 +202,8 @@ function parse(csv, options) {
             });
         });
     });
-    return data;
+    return Array.from(new Set(data.map(it => JSON.stringify(it))))
+        .map(json => JSON.parse(json));
 }
 exports.parse = parse;
 /**
@@ -220,55 +221,55 @@ function cleanResult(result) {
  * 郵便番号から住所を検索する
  * @param {string} zipcodeString
  * @param {AddressItem[]} data
- * @returns Promise<AddressItem[]>
+ * @returns AddressItem[] | Error
  */
 function findByZipcode(zipcodeString, data) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return yield new Promise((resolve, reject) => {
-            const zipcode = zipcodeString
-                .replace(/[０-９]/g, (s) => ZEN_NUM_MAP.indexOf(s).toString())
-                .replace(/[^\d]/g, '');
-            if (zipcode.length === 0) {
-                reject(new Error('empty zipcode'));
-                return;
-            }
-            const pattern = new RegExp(`^${zipcode}`);
-            const result = data.filter((item) => pattern.test(item.zipcode));
-            if (result.length > 0) {
-                resolve(cleanResult(result));
-            }
-            else {
-                reject(new Error('not found'));
-            }
-        });
-    });
+    const zipcode = zipcodeString
+        .replace(/[０-９]/g, (s) => ZEN_NUM_MAP.indexOf(s).toString())
+        .replace(/[^\d]/g, '');
+    if (zipcode.length === 0) {
+        return new Error('Invalid Parameter');
+    }
+    const pattern = new RegExp(`^${zipcode}`);
+    const result = data.filter((item) => pattern.test(item.zipcode));
+    return cleanResult(result);
 }
 exports.findByZipcode = findByZipcode;
 /**
  * 住所から住所を検索する
  * @param {string} addressString
  * @param {AddressItem[]} data
- * @returns Promise<AddressItem[]>
+ * @returns AddressItem[] | Error
  */
 function findByAddress(addressString, data) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return yield new Promise((resolve, reject) => {
-            const address = convertNumber(addressString);
-            if (address.length === 0) {
-                reject(new Error('empty address'));
-                return;
-            }
-            const result = (() => {
-                const r = data.filter((item) => `${item.pref}${item.sbAddress}`.includes(address));
-                return (r.length > 0) ? r : data.filter((item) => address.includes(item.sbAddress));
-            })();
-            if (result.length > 0) {
-                resolve(cleanResult(result));
-            }
-            else {
-                reject(new Error('not found'));
-            }
-        });
-    });
+    const address = convertNumber(addressString);
+    if (address.length === 0) {
+        return new Error('Invalid Parameter');
+    }
+    const result = (() => {
+        const r = data.filter((item) => `${item.pref}${item.sbAddress}`.includes(address));
+        return (r.length > 0) ? r : data.filter((item) => address.includes(item.sbAddress));
+    })();
+    return cleanResult(result);
 }
 exports.findByAddress = findByAddress;
+/**
+ * 住所の部品からAND/OR検索する
+ * @param {string[]} components
+ * @param {AddressItem[]} data
+ * @param {boolean} isOr
+ * @returns AddressItem[] | Error
+ */
+function findByComponents(components, data, isOr = false) {
+    if (components.length === 0 || components.join('').length === 0) {
+        return new Error('Invalid Parameter');
+    }
+    const result = data.filter((item) => {
+        const method = isOr ? 'some' : 'every';
+        return components[method]((component) => {
+            return `${item.pref}${item.sbAddress}`.includes(convertNumber(component));
+        });
+    });
+    return cleanResult(result);
+}
+exports.findByComponents = findByComponents;
