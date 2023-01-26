@@ -1,4 +1,4 @@
-import { fetch, parse, findByAddress, findByZipcode } from '../src/index';
+import { fetch, parse, findByAddress, findByZipcode, AddressItem, findByComponents } from '../src/index';
 
 function getType (obj: any): string | null {
   const m = Object.prototype.toString.call(obj).match(/\s([a-zA-Z]+)/);
@@ -34,7 +34,7 @@ test('parse downloaded csv data', async () => {
   const raw = await fetch();
   const data = parse(raw);
   const zipcode = getBracetedRow(raw)[2];
-  const results = await findByZipcode(zipcode, data);
+  const results = findByZipcode(zipcode, data) as AddressItem[];
 
   expect(data.length).toBeGreaterThan(9999);
   expect(/^\d+$/.test(results[0].zipcode)).toBe(true);
@@ -52,7 +52,7 @@ test('test parseBrackets option', async () => {
   const raw = await fetch();
   const data = parse(raw, { parseBrackets: true });
   const zipcode = getBracetedRow(raw)[2];
-  const results = await findByZipcode(zipcode, data);
+  const results = findByZipcode(zipcode, data) as AddressItem[];
 
   expect(results.length).toBeGreaterThan(0);
   expect(/^\d+$/.test(results[0].zipcode)).toBe(true);
@@ -62,28 +62,65 @@ test('test parseBrackets option', async () => {
   expect(results[0].notes).toBe(undefined);
 });
 
+// 重複データがないこと
+test("don't have duplicate data", async () => {
+  const raw = await fetch();
+  const data = parse(raw);
+  const tmp = data.map(it => JSON.stringify(it));
+  const uniq = [...new Set(tmp)];
+
+  expect(tmp.length).toBe(uniq.length);
+});
+
 // 郵便番号を指定してデータを取得できること
 test('find item by zipcode', async () => {
   const raw = await fetch();
   const data = parse(raw);
-  const results = await findByZipcode('1050011', data);
-  const item = results[0];
+  const r: [Error, AddressItem[], AddressItem[]] = [
+    findByZipcode('foobar', data) as Error,
+    findByZipcode('11111111', data) as AddressItem[],
+    findByZipcode('1050011', data) as AddressItem[]
+  ];
 
-  expect(results.length).toBeGreaterThan(0);
-  expect(getType(item)).toBe('object');
-  expect(item.zipcode).toBe('1050011');
-  expect(item.pref).toBe('東京都');
+  expect(r[0] instanceof Error).toBe(true);
+  expect(r[1].length).toBe(0);
+  expect(r[2].length).toBeGreaterThan(0);
+  expect(r[2][0].pref).toBe('東京都');
 });
 
 // 住所を指定してデータを取得できること
 test('find item by address', async () => {
   const raw = await fetch();
   const data = parse(raw);
-  const results = await findByAddress('東京都港区', data);
-  const item = results[0];
+  const r: [Error, AddressItem[], AddressItem[]] = [
+    findByAddress('', data) as Error,
+    findByAddress('foobar', data) as AddressItem[],
+    findByAddress('東京都港区', data) as AddressItem[]
+  ];
 
-  expect(results.length).toBeGreaterThan(0);
-  expect(getType(item)).toBe('object');
-  expect(/^[\d]+$/.test(item.zipcode)).toBe(true);
-  expect(item.pref).toBe('東京都');
+  expect(r[0] instanceof Error).toBe(true);
+  expect(r[1].length).toBe(0);
+  expect(r[2].length).toBeGreaterThan(0);
+  expect(r[2][0].pref).toBe('東京都');
+});
+
+// 住所部品を指定してデータを取得できること
+test('find item by components', async () => {
+  const raw = await fetch();
+  const data = parse(raw);
+  const r: [Error, Error, AddressItem[], AddressItem[], AddressItem[], AddressItem[]] = [
+    findByComponents([], data) as Error,
+    findByComponents([''], data) as Error,
+    findByComponents(['foobar'], data) as AddressItem[],
+    findByComponents(['東京都', '港区'], data) as AddressItem[],
+    findByComponents(['神奈川県', '東京都'], data) as AddressItem[],
+    findByComponents(['神奈川県', '東京都'], data, true) as AddressItem[]
+  ];
+
+  expect(r[0] instanceof Error).toBe(true);
+  expect(r[1] instanceof Error).toBe(true);
+  expect(r[2].length).toBe(0);
+  expect(r[3].length).toBeGreaterThan(0);
+  expect(r[4].length).toBe(0);
+  expect(r[5].length).toBeGreaterThan(0);
 });
