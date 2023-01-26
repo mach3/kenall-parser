@@ -7,7 +7,7 @@ const fs = require('fs');
  */
 async function findByZipcode () {
   const data = JSON.parse(fs.readFileSync('./data.json', 'utf-8'));
-  const result = await KenAll.findByZipcode('8710000', data);
+  const result = KenAll.findByZipcode('8710000', data);
   console.log({ result });
 }
 

@@ -7,7 +7,7 @@ const fs = require('fs');
  */
 async function findByAddress () {
   const data = JSON.parse(fs.readFileSync('./data.json', 'utf-8'));
-  const result = await KenAll.findByAddress('東京都港区芝公園', data);
+  const result = KenAll.findByAddress('東京都港区芝公園', data);
   console.log({ result });
 }
 
