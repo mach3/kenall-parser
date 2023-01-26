@@ -7,7 +7,7 @@ export declare function fetch(url?: string): Promise<string>;
 interface ParseOptions {
     parseBrackets?: boolean;
 }
-interface AddressItem {
+export interface AddressItem {
     zipcode: string;
     pref: string;
     components: string[];
@@ -27,14 +27,22 @@ export declare function parse(csv: string, options?: ParseOptions): SourceAddres
  * 郵便番号から住所を検索する
  * @param {string} zipcodeString
  * @param {AddressItem[]} data
- * @returns Promise<AddressItem[]>
+ * @returns AddressItem[] | Error
  */
-export declare function findByZipcode(zipcodeString: string, data: SourceAddressItem[]): Promise<AddressItem[]>;
+export declare function findByZipcode(zipcodeString: string, data: SourceAddressItem[]): AddressItem[] | Error;
 /**
  * 住所から住所を検索する
  * @param {string} addressString
  * @param {AddressItem[]} data
- * @returns Promise<AddressItem[]>
+ * @returns AddressItem[] | Error
  */
-export declare function findByAddress(addressString: string, data: SourceAddressItem[]): Promise<AddressItem[]>;
+export declare function findByAddress(addressString: string, data: SourceAddressItem[]): AddressItem[] | Error;
+/**
+ * 住所の部品からAND/OR検索する
+ * @param {string[]} components
+ * @param {AddressItem[]} data
+ * @param {boolean} isOr
+ * @returns AddressItem[] | Error
+ */
+export declare function findByComponents(components: string[], data: SourceAddressItem[], isOr?: boolean): AddressItem[] | Error;
 export {};

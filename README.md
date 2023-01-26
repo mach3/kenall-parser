@@ -52,9 +52,9 @@ save();
 const KenAll = require('kenall-parser');
 const fs = require('fs');
 
-async function findByZipcode () {
+function findByZipcode () {
   const data = JSON.parse(fs.readFileSync('./data.json', 'utf-8'));
-  const result = await KenAll.findByZipcode('1000001', data);
+  const result = KenAll.findByZipcode('1000001', data);
   console.log({ result });
 }
 
@@ -67,9 +67,24 @@ findByZipcode();
 const KenAll = require('kenall-parser');
 const fs = require('fs');
 
-async function findByAddress () {
+function findByAddress () {
   const data = JSON.parse(fs.readFileSync('./data.json', 'utf-8'));
-  const result = await KenAll.findByAddress('東京都港区芝公園', data);
+  const result = KenAll.findByAddress('東京都港区芝公園', data);
+  console.log({ result });
+}
+
+findByAddress();
+```
+
+### 保存したデータから住所部品で検索する
+
+```js
+const KenAll = require('kenall-parser');
+const fs = require('fs');
+
+function findByAddress () {
+  const data = JSON.parse(fs.readFileSync('./data.json', 'utf-8'));
+  const result = KenAll.findByComponents(['東京都', '港区', '赤坂'], data);
   console.log({ result });
 }
 

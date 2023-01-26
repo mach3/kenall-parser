@@ -134,10 +134,10 @@ function parseAddress (addressString: string = '', options?: ParseOptions): stri
     }
   }
 
-  return [address];
+  return [parseBrackets(address)[0]];
 }
 
-interface AddressItem {
+export interface AddressItem {
   zipcode: string
   pref: string
   components: string[]
@@ -207,7 +207,8 @@ export function parse (csv: string, options?: ParseOptions): SourceAddressItem[]
     });
   });
 
-  return data;
+  return Array.from(new Set(data.map(it => JSON.stringify(it))))
+    .map(json => JSON.parse(json));
 }
 
 /**
@@ -223,48 +224,54 @@ function cleanResult (result: SourceAddressItem[]): AddressItem[] {
  * 郵便番号から住所を検索する
  * @param {string} zipcodeString
  * @param {AddressItem[]} data
- * @returns Promise<AddressItem[]>
+ * @returns AddressItem[] | Error
  */
-export async function findByZipcode (zipcodeString: string, data: SourceAddressItem[]): Promise<AddressItem[]> {
-  return await new Promise((resolve, reject) => {
-    const zipcode = zipcodeString
-      .replace(/[０-９]/g, (s) => ZEN_NUM_MAP.indexOf(s).toString())
-      .replace(/[^\d]/g, '');
-    if (zipcode.length === 0) {
-      reject(new Error('empty zipcode'));
-      return;
-    }
-    const pattern = new RegExp(`^${zipcode}`);
-    const result = data.filter((item) => pattern.test(item.zipcode));
-    if (result.length > 0) {
-      resolve(cleanResult(result));
-    } else {
-      reject(new Error('not found'));
-    }
-  });
+export function findByZipcode (zipcodeString: string, data: SourceAddressItem[]): AddressItem[] | Error {
+  const zipcode = zipcodeString
+    .replace(/[０-９]/g, (s) => ZEN_NUM_MAP.indexOf(s).toString())
+    .replace(/[^\d]/g, '');
+  if (zipcode.length === 0) {
+    return new Error('Invalid Parameter');
+  }
+  const pattern = new RegExp(`^${zipcode}`);
+  const result = data.filter((item) => pattern.test(item.zipcode));
+  return cleanResult(result);
 }
 
 /**
  * 住所から住所を検索する
  * @param {string} addressString
  * @param {AddressItem[]} data
- * @returns Promise<AddressItem[]>
+ * @returns AddressItem[] | Error
  */
-export async function findByAddress (addressString: string, data: SourceAddressItem[]): Promise<AddressItem[]> {
-  return await new Promise((resolve, reject) => {
-    const address = convertNumber(addressString);
-    if (address.length === 0) {
-      reject(new Error('empty address'));
-      return;
-    }
-    const result = (() => {
-      const r = data.filter((item) => `${item.pref}${item.sbAddress}`.includes(address));
-      return (r.length > 0) ? r : data.filter((item) => address.includes(item.sbAddress));
-    })();
-    if (result.length > 0) {
-      resolve(cleanResult(result));
-    } else {
-      reject(new Error('not found'));
-    }
+export function findByAddress (addressString: string, data: SourceAddressItem[]): AddressItem[] | Error {
+  const address = convertNumber(addressString);
+  if (address.length === 0) {
+    return new Error('Invalid Parameter');
+  }
+  const result = (() => {
+    const r = data.filter((item) => `${item.pref}${item.sbAddress}`.includes(address));
+    return (r.length > 0) ? r : data.filter((item) => address.includes(item.sbAddress));
+  })();
+  return cleanResult(result);
+}
+
+/**
+ * 住所の部品からAND/OR検索する
+ * @param {string[]} components
+ * @param {AddressItem[]} data
+ * @param {boolean} isOr
+ * @returns AddressItem[] | Error
+ */
+export function findByComponents (components: string[], data: SourceAddressItem[], isOr: boolean = false): AddressItem[] | Error {
+  if (components.length === 0 || components.join('').length === 0) {
+    return new Error('Invalid Parameter');
+  }
+  const result = data.filter((item) => {
+    const method = isOr ? 'some' : 'every';
+    return components[method]((component) => {
+      return `${item.pref}${item.sbAddress}`.includes(convertNumber(component));
+    });
   });
+  return cleanResult(result);
 }
