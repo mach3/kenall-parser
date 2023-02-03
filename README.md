@@ -82,11 +82,11 @@ findByAddress();
 const KenAll = require('kenall-parser');
 const fs = require('fs');
 
-function findByAddress () {
+function findByComponents() {
   const data = JSON.parse(fs.readFileSync('./data.json', 'utf-8'));
   const result = KenAll.findByComponents(['東京都', '港区', '赤坂'], data);
   console.log({ result });
 }
 
-findByAddress();
+findByComponents();
 ```
