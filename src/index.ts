@@ -158,41 +158,23 @@ export function parse (csv: string, options?: ParseOptions): SourceAddressItem[]
   const rows = csv.split(/\r\n/);
   const data: SourceAddressItem[] = [];
   const multiline: string[] = [];
-  const counts = {
-    paren: 0,
-    bracket: 0
+
+  const parseLine = (line?: string): string[] => {
+    return (line !== undefined) ? line.split(',').map(value => value.replace(/"/g, '')) : [];
   };
 
-  rows.forEach((row) => {
-    const cols = row.split(',').map((v) => v.replace(/"/g, ''));
-    const zipcode = cols[2];
-    const pref = cols[6];
-    const city = cols[7];
-    let address = cols[8];
+  const getHasNextLine = (current: string[], next: string[]): boolean => {
+    return current[12] === '0' && current[2] === next[2] && current[6] === next[6] && current[7] === next[7];
+  };
 
-    if (address === undefined) {
-      return;
-    }
+  interface PushItemProps {
+    zipcode: string
+    pref: string
+    city: string
+    address: string
+  }
 
-    counts.paren += countChar(address, '（');
-    counts.paren -= countChar(address, '）');
-    counts.bracket = countChar(address, '「');
-    counts.bracket -= countChar(address, '」');
-
-    // multiline start
-    if (counts.paren > 0 || counts.bracket > 0) {
-      multiline.push(address);
-      return;
-    }
-
-    if (multiline.length > 0) {
-      multiline.push(address);
-      if (counts.paren === 0 && counts.bracket === 0) {
-        address = multiline.join('');
-        multiline.splice(0, multiline.length);
-      }
-    }
-
+  const pushItem = ({ zipcode, pref, city, address }: PushItemProps): void => {
     parseAddress(address, options).forEach((a) => {
       data.push(
         {
@@ -205,6 +187,40 @@ export function parse (csv: string, options?: ParseOptions): SourceAddressItem[]
         }
       );
     });
+  };
+
+  rows.forEach((row, i) => {
+    if (row.length === 0) {
+      return;
+    }
+
+    const next = parseLine(rows[i + 1]);
+    const current = parseLine(row);
+    const [,,zipcode,,,,pref, city, street] = current;
+
+    if (multiline.length > 0) {
+      multiline.push(street);
+      if (!getHasNextLine(current, next)) {
+        pushItem({
+          zipcode,
+          pref,
+          city,
+          address: multiline.join('')
+        });
+        multiline.splice(0, multiline.length);
+      }
+    } else {
+      if (getHasNextLine(current, next)) {
+        multiline.push(street);
+      } else {
+        pushItem({
+          zipcode,
+          pref,
+          city,
+          address: street
+        });
+      }
+    }
   });
 
   return Array.from(new Set(data.map(it => JSON.stringify(it))))
