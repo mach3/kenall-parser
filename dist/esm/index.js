@@ -102,11 +102,27 @@ function splitAddress(addressString) {
         : [''];
 }
 /**
+ * 住所から不要な文字列を削除する
+ * @param address
+ * @returns {string}
+ */
+function cleanAddressString(address) {
+    return address
+        .replace(/([^^])一円/, '$1')
+        .replace(/（高層棟）/, '')
+        .replace(/（(.+?)除く）/, '')
+        .replace(/（その他）/, '')
+        .replace(/「(.+?)」/g, '')
+        .replace(/〔(.+?)構内〕/g, '')
+        .replace(/以上/g, '');
+}
+/**
  * 住所から括弧内の文字列を取り除き、括弧内の文字列と一緒に返す
- * @param {string} address
+ * @param {string} addressString
  * @returns {[string, string?]}
  */
-function parseBrackets(address) {
+function parseBrackets(addressString) {
+    const address = cleanAddressString(addressString);
     const pattern = /（.+）/;
     const m = address.match(pattern);
     if (m !== null) {
@@ -128,14 +144,7 @@ function parseAddress(addressString = '', options) {
     if (/(くる|ない)場合/.test(addressString)) {
         return [''];
     }
-    const address = addressString
-        .replace(/([^^])一円/, '$1')
-        .replace(/（高層棟）/, '')
-        .replace(/（(.+?)除く）/, '')
-        .replace(/（その他）/, '')
-        .replace(/「(.+?)」/g, '')
-        .replace(/〔(.+?)構内〕/g, '')
-        .replace(/以上/g, '');
+    const address = cleanAddressString(addressString);
     if ((_a = (options === null || options === void 0 ? void 0 : options.parseBrackets)) !== null && _a !== void 0 ? _a : false) {
         const m = address.match(/(.+)（(.+?)）/);
         if (m !== null) {
