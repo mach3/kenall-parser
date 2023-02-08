@@ -182,7 +182,7 @@ function parse(csv, options) {
             data.push({
                 zipcode,
                 pref,
-                components: [city, a].filter((v) => Boolean(v)),
+                components: [pref, city, a].filter((v) => Boolean(v)),
                 address: `${city}${a}`,
                 sbAddress: convertNumber(`${city}${a}`),
                 notes: ((_a = (options === null || options === void 0 ? void 0 : options.parseBrackets)) !== null && _a !== void 0 ? _a : false) ? undefined : parseBrackets(address)[1]
