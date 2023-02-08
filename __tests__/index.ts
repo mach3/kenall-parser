@@ -103,6 +103,7 @@ test('find item by address', async () => {
   expect(r[1].length).toBe(0);
   expect(r[2].length).toBeGreaterThan(0);
   expect(r[2][0].pref).toBe('東京都');
+  expect(r[2][0].components.includes('東京都')).toBe(true);
 });
 
 // 住所部品を指定してデータを取得できること
