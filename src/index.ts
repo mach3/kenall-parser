@@ -190,7 +190,7 @@ export function parse (csv: string, options?: ParseOptions): SourceAddressItem[]
         {
           zipcode,
           pref,
-          components: [city, a].filter((v) => Boolean(v)),
+          components: [pref, city, a].filter((v) => Boolean(v)),
           address: `${city}${a}`,
           sbAddress: convertNumber(`${city}${a}`),
           notes: ((options?.parseBrackets) ?? false) ? undefined : parseBrackets(address)[1]
