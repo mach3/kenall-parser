@@ -7,23 +7,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __rest = (this && this.__rest) || function (s, e) {
-    var t = {};
-    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
-        t[p] = s[p];
-    if (s != null && typeof Object.getOwnPropertySymbols === "function")
-        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
-            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
-                t[p[i]] = s[p[i]];
-        }
-    return t;
-};
 import https from 'https';
 import unzipper from 'unzipper';
 import iconv from 'iconv-lite';
 const KEN_ALL_URL = 'https://www.post.japanpost.jp/zipcode/dl/kogaki/zip/ken_all.zip';
 const ZEN_NUM_MAP = '０１２３４５６７８９';
-const KAN_NUM_MAP = '〇一二三四五六七八九';
 /**
  * KEN_ALL.csvをダウンロードしてパースする
  * @param {string} url
@@ -52,15 +40,6 @@ export function fetch(url = KEN_ALL_URL) {
             });
         });
     });
-}
-/**
- * 文字列に含まれる全角数字・漢数字を半角数字に変換する
- * @param {string} str
- * @returns string
- */
-function convertNumber(str) {
-    return str.replace(/[０-９]/g, (s) => ZEN_NUM_MAP.indexOf(s).toString())
-        .replace(new RegExp(`[${KAN_NUM_MAP}]`, 'g'), (s) => KAN_NUM_MAP.indexOf(s).toString());
 }
 /**
  * 文字列に含まれる文字の数を数える
@@ -177,7 +156,6 @@ export function parse(csv, options) {
                 pref,
                 components: [pref, city, a].filter((v) => Boolean(v)),
                 address: `${city}${a}`,
-                sbAddress: convertNumber(`${city}${a}`),
                 notes: ((_a = (options === null || options === void 0 ? void 0 : options.parseBrackets)) !== null && _a !== void 0 ? _a : false) ? undefined : parseBrackets(address)[1]
             });
         });
@@ -219,17 +197,6 @@ export function parse(csv, options) {
         .map(json => JSON.parse(json));
 }
 /**
- * 結果セットから不要なプロパティを削除する
- * @param {AddressItem[]} result
- * @returns AddressItem[]
- */
-function cleanResult(result) {
-    return result.map((_a) => {
-        var { sbAddress } = _a, props = __rest(_a, ["sbAddress"]);
-        return (Object.assign({}, props));
-    });
-}
-/**
  * 郵便番号から住所を検索する
  * @param {string} zipcodeString
  * @param {AddressItem[]} data
@@ -243,25 +210,22 @@ export function findByZipcode(zipcodeString, data) {
         return new Error('Invalid Parameter');
     }
     const pattern = new RegExp(`^${zipcode}`);
-    const result = data.filter((item) => pattern.test(item.zipcode));
-    return cleanResult(result);
+    return data.filter((item) => pattern.test(item.zipcode));
 }
 /**
  * 住所から住所を検索する
- * @param {string} addressString
+ * @param {string} address
  * @param {AddressItem[]} data
  * @returns AddressItem[] | Error
  */
-export function findByAddress(addressString, data) {
-    const address = convertNumber(addressString);
+export function findByAddress(address, data) {
     if (address.length === 0) {
         return new Error('Invalid Parameter');
     }
-    const result = (() => {
-        const r = data.filter((item) => `${item.pref}${item.sbAddress}`.includes(address));
-        return (r.length > 0) ? r : data.filter((item) => address.includes(item.sbAddress));
-    })();
-    return cleanResult(result);
+    return data.filter(it => {
+        const itsAddress = `${it.pref}${it.address}`;
+        return itsAddress.includes(address) || address.includes(itsAddress);
+    });
 }
 /**
  * 住所の部品からAND/OR検索する
@@ -274,11 +238,14 @@ export function findByComponents(components, data, isOr = false) {
     if (components.length === 0 || components.join('').length === 0) {
         return new Error('Invalid Parameter');
     }
-    const result = data.filter((item) => {
-        const method = isOr ? 'some' : 'every';
-        return components[method]((component) => {
-            return `${item.pref}${item.sbAddress}`.includes(convertNumber(component));
-        });
+    const method = isOr ? 'some' : 'every';
+    return data.filter(it => {
+        const itsAddress = `${it.pref}${it.address}`;
+        if (components.length > 1) {
+            return components[method]((component) => {
+                return itsAddress.includes(component);
+            });
+        }
+        return itsAddress.includes(components[0]);
     });
-    return cleanResult(result);
 }
