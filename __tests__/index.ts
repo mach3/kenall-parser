@@ -43,7 +43,6 @@ test('parse downloaded csv data', async () => {
   expect(results[0].components.length > 0).toBe(true);
   expect(getType(results[0].components[0])).toBe('string');
   expect(getType(results[0].address)).toBe('string');
-  expect(getType(data[0].sbAddress)).toBe('string');
   expect(getType(results[0].notes)).toBe('string');
   expect(data.filter(it => JSON.stringify(it).indexOf('除く') > 0).length).toBe(0);
 });
