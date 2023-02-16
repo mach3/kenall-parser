@@ -4,7 +4,6 @@ import iconv from 'iconv-lite';
 
 const KEN_ALL_URL = 'https://www.post.japanpost.jp/zipcode/dl/kogaki/zip/ken_all.zip';
 const ZEN_NUM_MAP = '０１２３４５６７８９';
-const KAN_NUM_MAP = '〇一二三四五六七八九';
 
 /**
  * KEN_ALL.csvをダウンロードしてパースする
@@ -31,16 +30,6 @@ export async function fetch (url = KEN_ALL_URL): Promise<string> {
       return null;
     });
   });
-}
-
-/**
- * 文字列に含まれる全角数字・漢数字を半角数字に変換する
- * @param {string} str
- * @returns string
- */
-function convertNumber (str: string): string {
-  return str.replace(/[０-９]/g, (s) => ZEN_NUM_MAP.indexOf(s).toString())
-    .replace(new RegExp(`[${KAN_NUM_MAP}]`, 'g'), (s: string) => KAN_NUM_MAP.indexOf(s).toString());
 }
 
 /**
@@ -155,18 +144,14 @@ export interface AddressItem {
   notes?: string
 }
 
-type SourceAddressItem = AddressItem & {
-  sbAddress: string
-};
-
 /**
  * KEN_ALL.csvをパースする
  * @param {string} csv
  * @returns AddressItem[]
  */
-export function parse (csv: string, options?: ParseOptions): SourceAddressItem[] {
+export function parse (csv: string, options?: ParseOptions): AddressItem[] {
   const rows = csv.split(/\r\n/);
-  const data: SourceAddressItem[] = [];
+  const data: AddressItem[] = [];
   const multiline: string[] = [];
 
   const parseLine = (line?: string): string[] => {
@@ -192,7 +177,6 @@ export function parse (csv: string, options?: ParseOptions): SourceAddressItem[]
           pref,
           components: [pref, city, a].filter((v) => Boolean(v)),
           address: `${city}${a}`,
-          sbAddress: convertNumber(`${city}${a}`),
           notes: ((options?.parseBrackets) ?? false) ? undefined : parseBrackets(address)[1]
         }
       );
@@ -238,21 +222,12 @@ export function parse (csv: string, options?: ParseOptions): SourceAddressItem[]
 }
 
 /**
- * 結果セットから不要なプロパティを削除する
- * @param {AddressItem[]} result
- * @returns AddressItem[]
- */
-function cleanResult (result: SourceAddressItem[]): AddressItem[] {
-  return result.map(({ sbAddress, ...props }) => ({ ...props }));
-}
-
-/**
  * 郵便番号から住所を検索する
  * @param {string} zipcodeString
  * @param {AddressItem[]} data
  * @returns AddressItem[] | Error
  */
-export function findByZipcode (zipcodeString: string, data: SourceAddressItem[]): AddressItem[] | Error {
+export function findByZipcode (zipcodeString: string, data: AddressItem[]): AddressItem[] | Error {
   const zipcode = zipcodeString
     .replace(/[０-９]/g, (s) => ZEN_NUM_MAP.indexOf(s).toString())
     .replace(/[^\d]/g, '');
@@ -260,26 +235,23 @@ export function findByZipcode (zipcodeString: string, data: SourceAddressItem[])
     return new Error('Invalid Parameter');
   }
   const pattern = new RegExp(`^${zipcode}`);
-  const result = data.filter((item) => pattern.test(item.zipcode));
-  return cleanResult(result);
+  return data.filter((item) => pattern.test(item.zipcode));
 }
 
 /**
  * 住所から住所を検索する
- * @param {string} addressString
+ * @param {string} address
  * @param {AddressItem[]} data
  * @returns AddressItem[] | Error
  */
-export function findByAddress (addressString: string, data: SourceAddressItem[]): AddressItem[] | Error {
-  const address = convertNumber(addressString);
+export function findByAddress (address: string, data: AddressItem[]): AddressItem[] | Error {
   if (address.length === 0) {
     return new Error('Invalid Parameter');
   }
-  const result = (() => {
-    const r = data.filter((item) => `${item.pref}${item.sbAddress}`.includes(address));
-    return (r.length > 0) ? r : data.filter((item) => address.includes(item.sbAddress));
-  })();
-  return cleanResult(result);
+  return data.filter(it => {
+    const itsAddress = `${it.pref}${it.address}`;
+    return itsAddress.includes(address) || address.includes(itsAddress);
+  });
 }
 
 /**
@@ -289,15 +261,18 @@ export function findByAddress (addressString: string, data: SourceAddressItem[])
  * @param {boolean} isOr
  * @returns AddressItem[] | Error
  */
-export function findByComponents (components: string[], data: SourceAddressItem[], isOr: boolean = false): AddressItem[] | Error {
+export function findByComponents (components: string[], data: AddressItem[], isOr: boolean = false): AddressItem[] | Error {
   if (components.length === 0 || components.join('').length === 0) {
     return new Error('Invalid Parameter');
   }
-  const result = data.filter((item) => {
-    const method = isOr ? 'some' : 'every';
-    return components[method]((component) => {
-      return `${item.pref}${item.sbAddress}`.includes(convertNumber(component));
-    });
+  const method = isOr ? 'some' : 'every';
+  return data.filter(it => {
+    const itsAddress = `${it.pref}${it.address}`;
+    if (components.length > 1) {
+      return components[method]((component) => {
+        return itsAddress.includes(component);
+      });
+    }
+    return itsAddress.includes(components[0]);
   });
-  return cleanResult(result);
 }
