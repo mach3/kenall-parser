@@ -97,10 +97,16 @@ function cleanAddressString(address) {
         .replace(/([^^])一円/, '$1')
         .replace(/（高層棟）/, '')
         .replace(/（(.+?)除く）/, '')
+        .replace(/（(.+?)含む）/, '')
         .replace(/（その他）/, '')
         .replace(/「(.+?)」/g, '')
         .replace(/〔(.+?)構内〕/g, '')
-        .replace(/以上/g, '');
+        .replace(/以上/g, '')
+        .replace(/（地階・階層不明）/g, '')
+        .replace(/（.+(以降|以内)）/g, '')
+        .replace(/（(丁目|番地)）/g, '')
+        .replace(/甲、乙/g, '')
+        .replace(/^([^（]+?)[０-９]+.+(、|～).+$/, '$1');
 }
 /**
  * 住所から括弧内の文字列を取り除き、括弧内の文字列と一緒に返す
@@ -112,9 +118,10 @@ function parseBrackets(addressString) {
     const pattern = /（.+）/;
     const m = address.match(pattern);
     if (m !== null) {
+        const notes = m[0].replace(/[（）「」]/g, '');
         return [
             address.replace(pattern, ''),
-            m[0].replace(/[（）「」]/g, '')
+            /[、～・]/.test(notes) ? notes : undefined
         ];
     }
     return [address, undefined];
@@ -127,15 +134,21 @@ function parseBrackets(addressString) {
  */
 function parseAddress(addressString = '', options) {
     var _a;
+    const isSingleStreet = (content) => {
+        return !/[、～・]/.test(content);
+    };
     if (/(くる|ない)場合/.test(addressString)) {
         return [''];
     }
     const address = cleanAddressString(addressString);
-    if ((_a = (options === null || options === void 0 ? void 0 : options.parseBrackets)) !== null && _a !== void 0 ? _a : false) {
-        const m = address.match(/(.+)（(.+?)）/);
-        if (m !== null) {
-            const [, prefix, content] = m;
+    const m = address.match(/(.+)（(.+?)）/);
+    if (m !== null) {
+        const [, prefix, content] = m;
+        if ((_a = (options === null || options === void 0 ? void 0 : options.splitAddress)) !== null && _a !== void 0 ? _a : false) {
             return splitAddress(content).map((value) => `${prefix}${value}`);
+        }
+        else if (isSingleStreet(content)) {
+            return [`${prefix}${content}`];
         }
     }
     return [parseBrackets(address)[0]];
@@ -152,8 +165,9 @@ function parse(csv, options) {
     const parseLine = (line) => {
         return (line !== undefined) ? line.split(',').map(value => value.replace(/"/g, '')) : [];
     };
-    const getHasNextLine = (current, next) => {
-        return current[12] === '0' && current[2] === next[2] && current[6] === next[6] && current[7] === next[7];
+    const getHasNextLine = (c, n, count) => {
+        const r = c[12] === '0' && c[2] === n[2] && c[6] === n[6] && c[7] === n[7];
+        return r || !(count.open === count.close);
     };
     const pushItem = ({ zipcode, pref, city, address }) => {
         parseAddress(address, options).forEach((a) => {
@@ -163,20 +177,26 @@ function parse(csv, options) {
                 pref,
                 components: [pref, city, a].filter((v) => Boolean(v)),
                 address: `${city}${a}`,
-                notes: ((_a = (options === null || options === void 0 ? void 0 : options.parseBrackets)) !== null && _a !== void 0 ? _a : false) ? undefined : parseBrackets(address)[1]
+                notes: ((_a = (options === null || options === void 0 ? void 0 : options.splitAddress)) !== null && _a !== void 0 ? _a : false) ? undefined : parseBrackets(address)[1]
             });
         });
+    };
+    const count = {
+        open: 0,
+        close: 0
     };
     rows.forEach((row, i) => {
         if (row.length === 0) {
             return;
         }
+        count.open += countChar(row, '（');
+        count.close += countChar(row, '）');
         const next = parseLine(rows[i + 1]);
         const current = parseLine(row);
         const [, , zipcode, , , , pref, city, street] = current;
         if (multiline.length > 0) {
             multiline.push(street);
-            if (!getHasNextLine(current, next)) {
+            if (!getHasNextLine(current, next, count)) {
                 pushItem({
                     zipcode,
                     pref,
@@ -184,10 +204,12 @@ function parse(csv, options) {
                     address: multiline.join('')
                 });
                 multiline.splice(0, multiline.length);
+                count.open = 0;
+                count.close = 0;
             }
         }
         else {
-            if (getHasNextLine(current, next)) {
+            if (getHasNextLine(current, next, count)) {
                 multiline.push(street);
             }
             else {
