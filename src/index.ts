@@ -75,7 +75,7 @@ function splitAddress (addressString: string): string[] {
 }
 
 interface ParseOptions {
-  parseBrackets?: boolean
+  splitAddress?: boolean
 }
 
 /**
@@ -88,10 +88,16 @@ function cleanAddressString (address: string): string {
     .replace(/([^^])一円/, '$1')
     .replace(/（高層棟）/, '')
     .replace(/（(.+?)除く）/, '')
+    .replace(/（(.+?)含む）/, '')
     .replace(/（その他）/, '')
     .replace(/「(.+?)」/g, '')
     .replace(/〔(.+?)構内〕/g, '')
-    .replace(/以上/g, '');
+    .replace(/以上/g, '')
+    .replace(/（地階・階層不明）/g, '')
+    .replace(/（.+(以降|以内)）/g, '')
+    .replace(/（(丁目|番地)）/g, '')
+    .replace(/甲、乙/g, '')
+    .replace(/^([^（]+?)[０-９]+.+(、|～).+$/, '$1');
 }
 
 /**
@@ -104,9 +110,10 @@ function parseBrackets (addressString: string): [string, string?] {
   const pattern = /（.+）/;
   const m = address.match(pattern);
   if (m !== null) {
+    const notes = m[0].replace(/[（）「」]/g, '');
     return [
       address.replace(pattern, ''),
-      m[0].replace(/[（）「」]/g, '')
+      /[、～・]/.test(notes) ? notes : undefined
     ];
   }
   return [address, undefined];
@@ -119,17 +126,23 @@ function parseBrackets (addressString: string): [string, string?] {
  * @returns string[]
  */
 function parseAddress (addressString: string = '', options?: ParseOptions): string[] {
+  const isSingleStreet = (content: string): boolean => {
+    return !/[、～・]/.test(content);
+  };
+
   if (/(くる|ない)場合/.test(addressString)) {
     return [''];
   }
 
   const address = cleanAddressString(addressString);
+  const m = address.match(/(.+)（(.+?)）/);
 
-  if ((options?.parseBrackets) ?? false) {
-    const m = address.match(/(.+)（(.+?)）/);
-    if (m !== null) {
-      const [, prefix, content] = m;
+  if (m !== null) {
+    const [, prefix, content] = m;
+    if ((options?.splitAddress) ?? false) {
       return splitAddress(content).map((value) => `${prefix}${value}`);
+    } else if (isSingleStreet(content)) {
+      return [`${prefix}${content}`];
     }
   }
 
@@ -158,8 +171,9 @@ export function parse (csv: string, options?: ParseOptions): AddressItem[] {
     return (line !== undefined) ? line.split(',').map(value => value.replace(/"/g, '')) : [];
   };
 
-  const getHasNextLine = (current: string[], next: string[]): boolean => {
-    return current[12] === '0' && current[2] === next[2] && current[6] === next[6] && current[7] === next[7];
+  const getHasNextLine = (c: string[], n: string[], count: { open: number, close: number }): boolean => {
+    const r = c[12] === '0' && c[2] === n[2] && c[6] === n[6] && c[7] === n[7];
+    return r || !(count.open === count.close);
   };
 
   interface PushItemProps {
@@ -177,10 +191,15 @@ export function parse (csv: string, options?: ParseOptions): AddressItem[] {
           pref,
           components: [pref, city, a].filter((v) => Boolean(v)),
           address: `${city}${a}`,
-          notes: ((options?.parseBrackets) ?? false) ? undefined : parseBrackets(address)[1]
+          notes: ((options?.splitAddress) ?? false) ? undefined : parseBrackets(address)[1]
         }
       );
     });
+  };
+
+  const count = {
+    open: 0,
+    close: 0
   };
 
   rows.forEach((row, i) => {
@@ -188,13 +207,16 @@ export function parse (csv: string, options?: ParseOptions): AddressItem[] {
       return;
     }
 
+    count.open += countChar(row, '（');
+    count.close += countChar(row, '）');
+
     const next = parseLine(rows[i + 1]);
     const current = parseLine(row);
     const [,,zipcode,,,,pref, city, street] = current;
 
     if (multiline.length > 0) {
       multiline.push(street);
-      if (!getHasNextLine(current, next)) {
+      if (!getHasNextLine(current, next, count)) {
         pushItem({
           zipcode,
           pref,
@@ -202,9 +224,11 @@ export function parse (csv: string, options?: ParseOptions): AddressItem[] {
           address: multiline.join('')
         });
         multiline.splice(0, multiline.length);
+        count.open = 0;
+        count.close = 0;
       }
     } else {
-      if (getHasNextLine(current, next)) {
+      if (getHasNextLine(current, next, count)) {
         multiline.push(street);
       } else {
         pushItem({
