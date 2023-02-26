@@ -50,7 +50,7 @@ test('parse downloaded csv data', async () => {
 // 括弧内の文字列をパースできること
 test('test parseBrackets option', async () => {
   const raw = await fetch();
-  const data = parse(raw, { parseBrackets: true });
+  const data = parse(raw, { splitAddress: true });
   const zipcode = getBracetedRow(raw)[2];
   const results = findByZipcode(zipcode, data) as AddressItem[];
 
@@ -124,4 +124,14 @@ test('find item by components', async () => {
   expect(r[3].length).toBeGreaterThan(0);
   expect(r[4].length).toBe(0);
   expect(r[5].length).toBeGreaterThan(0);
+});
+
+test('Edge Case : 9218046', async () => {
+  // 2023/2/26現在、「一つの郵便番号で二以上の町域を表す場合の表示」が 1 だが複数行に渡るケースであり、
+  // さらに対象の郵便番号が示す町域は同じ市内にあるため、正常にパースできていなかった
+  // その対応をこのテストで検証する
+  const raw = await fetch();
+  const data = parse(raw);
+  const r = findByZipcode('9218046', data) as AddressItem[];
+  expect(r.length).toBe(2);
 });
