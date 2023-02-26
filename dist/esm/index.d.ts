@@ -5,7 +5,7 @@
  */
 export declare function fetch(url?: string): Promise<string>;
 interface ParseOptions {
-    parseBrackets?: boolean;
+    splitAddress?: boolean;
 }
 export interface AddressItem {
     zipcode: string;
