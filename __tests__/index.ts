@@ -92,10 +92,11 @@ test('find item by zipcode', async () => {
 test('find item by address', async () => {
   const raw = await fetch();
   const data = parse(raw);
-  const r: [Error, AddressItem[], AddressItem[]] = [
+  const r: [Error, AddressItem[], AddressItem[], AddressItem[]] = [
     findByAddress('', data) as Error,
     findByAddress('foobar', data) as AddressItem[],
-    findByAddress('東京都港区', data) as AddressItem[]
+    findByAddress('東京都港区', data) as AddressItem[],
+    findByAddress('藤沢市大庭5', data) as AddressItem[]
   ];
 
   expect(r[0] instanceof Error).toBe(true);
@@ -103,6 +104,7 @@ test('find item by address', async () => {
   expect(r[2].length).toBeGreaterThan(0);
   expect(r[2][0].pref).toBe('東京都');
   expect(r[2][0].components.includes('東京都')).toBe(true);
+  expect(r[3].length).toBeGreaterThan(0);
 });
 
 // 住所部品を指定してデータを取得できること

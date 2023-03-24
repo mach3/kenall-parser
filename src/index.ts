@@ -274,7 +274,10 @@ export function findByAddress (address: string, data: AddressItem[]): AddressIte
   }
   return data.filter(it => {
     const itsAddress = `${it.pref}${it.address}`;
-    return itsAddress.includes(address) || address.includes(itsAddress);
+    return itsAddress.includes(address) ||
+      address.includes(itsAddress) ||
+      it.address.includes(address) ||
+      address.includes(it.address);
   });
 }
 

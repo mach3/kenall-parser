@@ -246,7 +246,10 @@ export function findByAddress(address, data) {
     }
     return data.filter(it => {
         const itsAddress = `${it.pref}${it.address}`;
-        return itsAddress.includes(address) || address.includes(itsAddress);
+        return itsAddress.includes(address) ||
+            address.includes(itsAddress) ||
+            it.address.includes(address) ||
+            address.includes(it.address);
     });
 }
 /**
