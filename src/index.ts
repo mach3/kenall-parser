@@ -297,19 +297,21 @@ export function similaritySort (kneedle: string, data: AddressItem[]): AddressIt
  * 住所から住所を検索する
  * @param {string} address
  * @param {AddressItem[]} data
+ * @param {boolean} [sort]
  * @returns AddressItem[] | Error
  */
-export function findByAddress (address: string, data: AddressItem[]): AddressItem[] | Error {
+export function findByAddress (address: string, data: AddressItem[], sort: Boolean = false): AddressItem[] | Error {
   if (address.length === 0) {
     return new Error('Invalid Parameter');
   }
-  return data.filter(it => {
+  const result = data.filter(it => {
     const itsAddress = `${it.pref}${it.address}`;
     return itsAddress.includes(address) ||
       address.includes(itsAddress) ||
       it.address.includes(address) ||
       address.includes(it.address);
   });
+  return sort === true ? similaritySort(address, result) : result;
 }
 
 /**
