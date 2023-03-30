@@ -263,6 +263,37 @@ export function findByZipcode (zipcodeString: string, data: AddressItem[]): Addr
 }
 
 /**
+ * 類似度が高い順にソートする
+ * 類似度が同じ場合は文字数が少ない順にソートする
+ * @param {string} kneedle
+ * @param {AddressItem[]} data
+ * @returns AddressItem[]
+ */
+export function similaritySort (kneedle: string, data: AddressItem[]): AddressItem[] {
+  const result = [...data];
+  const kneedleSet: Set<string> = new Set(kneedle);
+  const getSimilarity = (value: string): number => {
+    return Array.from(value).reduce((a, c) => {
+      return kneedleSet.has(c) ? a + 1 : a;
+    }, 0);
+  };
+
+  result.sort((a, b) => {
+    const aValue = `${a.pref}${a.address}`;
+    const bValue = `${b.pref}${b.address}`;
+    const aSim = getSimilarity(aValue);
+    const bSim = getSimilarity(bValue);
+    if (aSim === bSim) {
+      return aValue.length - bValue.length;
+    } else {
+      return bSim - aSim;
+    }
+  });
+
+  return result;
+}
+
+/**
  * 住所から住所を検索する
  * @param {string} address
  * @param {AddressItem[]} data

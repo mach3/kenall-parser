@@ -1,4 +1,4 @@
-import { fetch, parse, findByAddress, findByZipcode, AddressItem, findByComponents } from '../src/index';
+import { fetch, parse, findByAddress, findByZipcode, AddressItem, findByComponents, similaritySort } from '../src/index';
 
 function getType (obj: any): string | null {
   const m = Object.prototype.toString.call(obj).match(/\s([a-zA-Z]+)/);
@@ -136,4 +136,12 @@ test('Edge Case : 9218046', async () => {
   const data = parse(raw);
   const r = findByZipcode('9218046', data) as AddressItem[];
   expect(r.length).toBe(2);
+});
+
+// 類似度でソート
+test('sort by similarity', async () => {
+  const SAMPLE_DATA = JSON.parse('[{"zipcode":"1140000","pref":"東京都","components":["東京都","北区"],"address":"北区"},{"zipcode":"5300000","pref":"大阪府","components":["大阪府","大阪市北区"],"address":"大阪市北区"},{"zipcode":"5300057","pref":"大阪府","components":["大阪府","大阪市北区","曽根崎"],"address":"大阪市北区曽根崎"},{"zipcode":"5300002","pref":"大阪府","components":["大阪府","大阪市北区","曽根崎新地"],"address":"大阪市北区曽根崎新地"}]');
+  const r = similaritySort('大阪府大阪市北区曽根崎', SAMPLE_DATA);
+  expect(r[0].zipcode).toBe('5300057');
+  expect(r[3].zipcode).toBe('1140000');
 });
