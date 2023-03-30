@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.findByComponents = exports.findByAddress = exports.findByZipcode = exports.parse = exports.fetch = void 0;
+exports.findByComponents = exports.findByAddress = exports.similaritySort = exports.findByZipcode = exports.parse = exports.fetch = void 0;
 const https_1 = __importDefault(require("https"));
 const unzipper_1 = __importDefault(require("unzipper"));
 const iconv_lite_1 = __importDefault(require("iconv-lite"));
@@ -244,22 +244,54 @@ function findByZipcode(zipcodeString, data) {
 }
 exports.findByZipcode = findByZipcode;
 /**
+ * 類似度が高い順にソートする
+ * 類似度が同じ場合は文字数が少ない順にソートする
+ * @param {string} kneedle
+ * @param {AddressItem[]} data
+ * @returns AddressItem[]
+ */
+function similaritySort(kneedle, data) {
+    const result = [...data];
+    const kneedleSet = new Set(kneedle);
+    const getSimilarity = (value) => {
+        return Array.from(value).reduce((a, c) => {
+            return kneedleSet.has(c) ? a + 1 : a;
+        }, 0);
+    };
+    result.sort((a, b) => {
+        const aValue = `${a.pref}${a.address}`;
+        const bValue = `${b.pref}${b.address}`;
+        const aSim = getSimilarity(aValue);
+        const bSim = getSimilarity(bValue);
+        if (aSim === bSim) {
+            return aValue.length - bValue.length;
+        }
+        else {
+            return bSim - aSim;
+        }
+    });
+    return result;
+}
+exports.similaritySort = similaritySort;
+/**
  * 住所から住所を検索する
  * @param {string} address
  * @param {AddressItem[]} data
+ * @param {boolean} [sort]
  * @returns AddressItem[] | Error
  */
-function findByAddress(address, data) {
+function findByAddress(address, data, sort = false) {
     if (address.length === 0) {
         return new Error('Invalid Parameter');
     }
-    return data.filter(it => {
+    const result = data.filter(it => {
         const itsAddress = `${it.pref}${it.address}`;
         return itsAddress.includes(address) ||
             address.includes(itsAddress) ||
             it.address.includes(address) ||
             address.includes(it.address);
     });
+    return sort === true ? similaritySort(address, result) : result;
 }
 exports.findByAddress = findByAddress;
 /**
