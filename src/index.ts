@@ -263,22 +263,55 @@ export function findByZipcode (zipcodeString: string, data: AddressItem[]): Addr
 }
 
 /**
+ * 類似度が高い順にソートする
+ * 類似度が同じ場合は文字数が少ない順にソートする
+ * @param {string} kneedle
+ * @param {AddressItem[]} data
+ * @returns AddressItem[]
+ */
+export function similaritySort (kneedle: string, data: AddressItem[]): AddressItem[] {
+  const result = [...data];
+  const kneedleSet: Set<string> = new Set(kneedle);
+  const getSimilarity = (value: string): number => {
+    return Array.from(value).reduce((a, c) => {
+      return kneedleSet.has(c) ? a + 1 : a;
+    }, 0);
+  };
+
+  result.sort((a, b) => {
+    const aValue = `${a.pref}${a.address}`;
+    const bValue = `${b.pref}${b.address}`;
+    const aSim = getSimilarity(aValue);
+    const bSim = getSimilarity(bValue);
+    if (aSim === bSim) {
+      return aValue.length - bValue.length;
+    } else {
+      return bSim - aSim;
+    }
+  });
+
+  return result;
+}
+
+/**
  * 住所から住所を検索する
  * @param {string} address
  * @param {AddressItem[]} data
+ * @param {boolean} [sort]
  * @returns AddressItem[] | Error
  */
-export function findByAddress (address: string, data: AddressItem[]): AddressItem[] | Error {
+export function findByAddress (address: string, data: AddressItem[], sort: Boolean = false): AddressItem[] | Error {
   if (address.length === 0) {
     return new Error('Invalid Parameter');
   }
-  return data.filter(it => {
+  const result = data.filter(it => {
     const itsAddress = `${it.pref}${it.address}`;
     return itsAddress.includes(address) ||
       address.includes(itsAddress) ||
       it.address.includes(address) ||
       address.includes(it.address);
   });
+  return sort === true ? similaritySort(address, result) : result;
 }
 
 /**
